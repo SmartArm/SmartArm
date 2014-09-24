@@ -4,12 +4,12 @@
 #include<stdlib.h>
 #include<stm32f4xx_it.h>
 #include<math.h>
-#define dataNum 4
+#define dataNum 7
 char USART1_RECV_BUF[100];
 int ready=0;
 int length=0;
 int *GetIntData();
-void sendInstruction(int servo,int degree);
+void runServoTo(int servo,int degree);
 
 extern void Delay_us(__IO uint32_t nTime);//延时us函数
 
@@ -19,32 +19,42 @@ int main(void)
 {
        NVIC_Config();
        USART1_Config();
-
+       TIM3_PWM_Init();
+       TIM2_PWM_Init();
        //初始化串口1，中断方式接收
-      
 
-        int pitch=90,roll=90,yaw=0, radius=500;
-         sendInstruction(9,roll);
-         sendInstruction(8,pitch);
-         sendInstruction(7,yaw);
-         sendInstruction(6,0);
-         sendInstruction(5,0);//初始状态
+       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100;
+       int instruction[7]={0,0,0,90,90,0,100};// x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100;
+       runServoTo(4,60);
+       runServoTo(5,0);
+         runServoTo(6,0);
+      /* for(int x=0;x<7;x++)
+       {
+          runServoTo(x+1,instruction[x]);
+ 
+       }*/
+
+
         while(1){
    
-     
+
          int *data;
          if(ready==1){
          USART_ITConfig(USART1,USART_IT_RXNE,DISABLE);//暂时关闭接收中断
          data=GetIntData();
-         pitch=*data;
-         roll=*(data+1);
-         yaw=*(data+2);
-         radius=*(data+3);
-         sendInstruction(9,roll);//控制左右倾角
-         sendInstruction(8,pitch);//控制仰角和俯角
-         sendInstruction(7,yaw);//控制朝向
-         if(radius<40) sendInstruction(10,1600);//合爪子
-         else sendInstruction(10,900);//张爪子
+         pitch=*(data+3);
+         roll=*(data+4);
+         yaw=*(data+5);
+         pinch=*(data+6);
+         
+         runServoTo(1,roll);
+         runServoTo(2,pitch);
+         runServoTo(3,yaw);
+         if(pinch<30){
+            runServoTo(4,10);//合爪子
+         }
+         else runServoTo(4,60);//张爪子
+        
          ready=0;
          length=0;
          free(data);//释放内存
@@ -54,7 +64,7 @@ int main(void)
         }
         
         
-      
+   
 }
 /*该函数将缓冲区内的数据转化为int类型，然后将int数组的指针返回*/
 int *GetIntData()
@@ -101,33 +111,38 @@ int *GetIntData()
 
 }
 
-void sendInstruction(int servo,int degree)//将leapmotion的角度数据转化为舵机控制板的命令
+void runServoTo(int servo,int degree)//将leapmotion的角度数据转化为舵机的命令
 {
-  char instruction[100];
+  
   int position;
+
   switch (servo){
-  case 9: position=degree*(-11.1)+1350;
+  case 1: position=degree*(-19)+3010;
+          TIM_SetCompare1 (TIM3,position);//手腕的舵机
            break;
-  case 8: position=degree*11.1+1350;
+  case 2: position=degree*(19)+3010;
+          TIM_SetCompare2 (TIM3,position);//手腕的俯仰舵机
            break;
-  case 7: position=degree*(-11.1)+1350;
-           break;
-  case 10:position=degree;
-           break;
-  default:position=degree*11.1+1350;
+  case 3: position=degree*(-19)+3010;
+          TIM_SetCompare3 (TIM3,position);//底座旋转舵机
+           break;  
+  case 4:
+           position=degree*(-19)+3010;
+          TIM_SetCompare4 (TIM3,position);//爪子
+           break;   
+  case 5:
+           position=degree*(-19)+3010;
+          TIM_SetCompare1 (TIM2,position);//位置舵机1
+           break;  
+  case 6:
+           position=degree*(-19)+3010;
+          TIM_SetCompare2 (TIM2,position);//位置舵机2
+           break;           
+  default:position=degree*19+3010;
            break;
   }
   
-  sprintf(instruction,"#%d P%d T50\r\n",servo,position);
-  for(int x=0;instruction[x]!='\n';x++)
-  {
-    
-    USART_SendData(USART1,instruction[x]);
-    while(USART_GetFlagStatus(USART1,USART_FLAG_TC)!= SET);
- 
-  }
-  USART_SendData(USART1, '\n');
-  while(USART_GetFlagStatus(USART1,USART_FLAG_TC)!= SET);
+
   
 
   
