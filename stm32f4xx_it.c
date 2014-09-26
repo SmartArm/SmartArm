@@ -29,7 +29,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_it.h"
-
+#include "SysTick.h"
 /** @addtogroup STM32F4xx_StdPeriph_Examples
   * @{
   */
@@ -145,7 +145,7 @@ void PendSV_Handler(void)
 
 void SysTick_Handler(void)
 {
-  
+ TimingDelay_Decrement();
 }
 
 /******************************************************************************/

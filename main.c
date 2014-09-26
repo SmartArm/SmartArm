@@ -4,17 +4,216 @@
 #include<stdlib.h>
 #include<stm32f4xx_it.h>
 #include<math.h>
-#define dataNum 7
+#include"SysTick.h"
+#define dataNum 8
 char USART1_RECV_BUF[100];
 int ready=0;
 int length=0;
 int *GetIntData();
-void runServoTo(int servo,int degree);
 
-extern void Delay_us(__IO uint32_t nTime);//延时us函数
+extern void Delay_ms(__IO uint32_t nTime);//延时us函数
+
+struct servo{
+  int lastPos;
+  int label;
+}servos[6]={
+  {0,1},{0,2},{0,3},{60,4},{0,5},{0,6}
+};
+/************************************************************/
+//函数名:runServoToByStep
+//输入：舵机结构体指针，目标角度，步长角度，每步时间间隔（ms）
+//返回值：无
+//描述：根据命令控制某一舵机按照特定步长和时间间隔到达某一角度
+/************************************************************/
+
+void runServoToByStep(struct servo* s_ptr,int target,int step,int interval)
+{
+  
+  int pwm,position=(*s_ptr).lastPos;
+
+  if(position-target>0) step=-step;
+  switch ((*s_ptr).label){
+  case 1:if(step>0)
+         {
+           while(position<target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare1 (TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }
+         else{
+           while(position>target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare1 (TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }
+           break;//手腕的舵机
+  case 2:if(step>0)
+         {
+           while(position<target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare2 (TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }
+         else{
+           while(position>target)
+          { 
+           position+=step;
+           pwm=position*(19)+3010;
+           TIM_SetCompare2(TIM3,pwm);
+           Delay_ms(interval);
+          }
+         } 
+
+           break;//手腕的俯仰舵机
+  case 3:if(step>0)
+         {
+           while(position<target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare3 (TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }
+         else{
+           while(position>target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare3(TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }  
+           break;  //底座旋转舵机
+  case 4:if(step>0)
+         {
+           while(position<target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare4 (TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }
+         else{
+           while(position>target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare4(TIM3,pwm);
+           Delay_ms(interval);
+          }
+         }  
+
+           break;   //爪子
+  case 5:if(step>0)
+         {
+           while(position<target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare1 (TIM2,pwm);
+           Delay_ms(interval);
+          }
+         }
+         else{
+           while(position>target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare1(TIM2,pwm);
+           Delay_ms(interval);
+          }
+         }  //位置舵机1
+
+           break;  
+  case 6:if(step>0)
+         {
+           while(position<target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare2 (TIM2,pwm);
+           Delay_ms(interval);
+          }
+         }
+         else{
+           while(position>target)
+          { 
+           position+=step;
+           pwm=position*(-19)+3010;
+           TIM_SetCompare2(TIM2,pwm);
+           Delay_ms(interval);
+          }
+         }
+                  //位置舵机2
+           break;           
+
+  }
+  
+  (*s_ptr).lastPos=target;//更新位置
+  
+
+  
+}
+void runServoTo(struct servo* s_ptr,int target)
+{
+  int pwm;
+
+  switch ((*s_ptr).label){
+  case 1:
+          pwm=target*(-19)+3010;
+          TIM_SetCompare1 (TIM3,pwm);
+        
+           break;//手腕的舵机
+  case 2: pwm=target*(19)+3010;
+          TIM_SetCompare2 (TIM3,pwm);
+           break;//手腕的俯仰舵机
+  case 3: pwm=target*(-19)+3010;
+          TIM_SetCompare3 (TIM3,pwm);
+           break;  //底座旋转舵机
+  case 4:
+           pwm=target*(-19)+3010;
+          TIM_SetCompare4 (TIM3,pwm);//爪子
+           break;   
+  case 5:
+           pwm=target*(-19)+3010;
+          TIM_SetCompare1 (TIM2,pwm);//位置舵机1
+           break;  
+  case 6:
+           pwm=target*(-19)+3010;
+          TIM_SetCompare2 (TIM2,pwm);//位置舵机2
+           break;           
+  default:pwm=target*19+3010;
+           break;
+  }
+  
+  (*s_ptr).lastPos=target;//更新位置
+  
+
+  
+}
+struct servo* servo_ptr=&servos[0];      
+
+void armInit(){
+       for(int x=0;x<6;x++)
+       {
+         int target=(*servo_ptr).lastPos;
+         runServoTo(servo_ptr,target);
+         servo_ptr++;
+       }
 
 
-
+}
 int main(void)
 {
        NVIC_Config();
@@ -22,22 +221,18 @@ int main(void)
        TIM3_PWM_Init();
        TIM2_PWM_Init();
        //初始化串口1，中断方式接收
+       SysTick_Init();//初始化时钟
+       SysTick->CTRL |=  SysTick_CTRL_ENABLE_Msk;//使能时钟
 
-       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100;
-       int instruction[7]={0,0,0,90,90,0,100};// x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100;
-       runServoTo(4,60);
-       runServoTo(5,0);
-         runServoTo(6,0);
-      /* for(int x=0;x<7;x++)
-       {
-          runServoTo(x+1,instruction[x]);
- 
-       }*/
+       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0;
 
+       armInit();//初始化机械臂
 
+        uint32_t lastTime=0;
+      
         while(1){
    
-
+         servo_ptr=&servos[0];
          int *data;
          if(ready==1){
          USART_ITConfig(USART1,USART_IT_RXNE,DISABLE);//暂时关闭接收中断
@@ -46,15 +241,38 @@ int main(void)
          roll=*(data+4);
          yaw=*(data+5);
          pinch=*(data+6);
+         circleGesture=*(data+7);
          
-         runServoTo(1,roll);
-         runServoTo(2,pitch);
-         runServoTo(3,yaw);
-         if(pinch<30){
-            runServoTo(4,10);//合爪子
+         if( circleGesture>=2)
+         {
+              
+           runServoToByStep(servo_ptr,0,1,10);
+           runServoToByStep(servo_ptr+1,0,1,10);
+           runServoToByStep(servo_ptr+2,0,1,10);
+           runServoToByStep(servo_ptr+3,60,1,10);
+           runServoToByStep(servo_ptr+5,45,1,10);
+           runServoToByStep(servo_ptr+4,90,1,10);
+           runServoToByStep(servo_ptr+5,90,1,10);
+           Delay_ms(2000);
+           
+           runServoToByStep(servo_ptr+4,0,1,10);
+           runServoToByStep(servo_ptr+5,0,1,10);      
+                  
+         }//手势命令
+
+         runServoTo(servo_ptr,roll);
+         runServoTo(servo_ptr+1,pitch);
+         runServoTo(servo_ptr+2,yaw);
+         uint32_t RunTime=getTime();
+         if(RunTime-lastTime>200)//防止错误控制信息使爪子错误张合
+         {
+           if(pinch<40)
+           {
+            runServoTo(servo_ptr+3,0);//合爪子
+           }
+           else runServoTo(servo_ptr+3,60);//张爪子
+           lastTime=RunTime;
          }
-         else runServoTo(4,60);//张爪子
-        
          ready=0;
          length=0;
          free(data);//释放内存
@@ -111,40 +329,4 @@ int *GetIntData()
 
 }
 
-void runServoTo(int servo,int degree)//将leapmotion的角度数据转化为舵机的命令
-{
-  
-  int position;
-
-  switch (servo){
-  case 1: position=degree*(-19)+3010;
-          TIM_SetCompare1 (TIM3,position);//手腕的舵机
-           break;
-  case 2: position=degree*(19)+3010;
-          TIM_SetCompare2 (TIM3,position);//手腕的俯仰舵机
-           break;
-  case 3: position=degree*(-19)+3010;
-          TIM_SetCompare3 (TIM3,position);//底座旋转舵机
-           break;  
-  case 4:
-           position=degree*(-19)+3010;
-          TIM_SetCompare4 (TIM3,position);//爪子
-           break;   
-  case 5:
-           position=degree*(-19)+3010;
-          TIM_SetCompare1 (TIM2,position);//位置舵机1
-           break;  
-  case 6:
-           position=degree*(-19)+3010;
-          TIM_SetCompare2 (TIM2,position);//位置舵机2
-           break;           
-  default:position=degree*19+3010;
-           break;
-  }
-  
-
-  
-
-  
-}
 
