@@ -5,6 +5,7 @@
 #include<stm32f4xx_it.h>
 #include<math.h>
 #include"SysTick.h"
+#include"car.h"
 #define dataNum 8
 char USART1_RECV_BUF[100];
 int ready=0;
@@ -220,6 +221,10 @@ int main(void)
        USART1_Config();
        TIM3_PWM_Init();
        TIM2_PWM_Init();
+       TIM1_GPIO_Config();
+       Tim1_Config();
+       directionInit();//小车初始化
+       advance();
        //初始化串口1，中断方式接收
        SysTick_Init();//初始化时钟
        SysTick->CTRL |=  SysTick_CTRL_ENABLE_Msk;//使能时钟
@@ -229,7 +234,9 @@ int main(void)
        armInit();//初始化机械臂
 
         uint32_t lastTime=0;
-      
+       TIM_SetCompare1(TIM1,1000);
+       TIM_SetCompare2(TIM1,1000);
+
         while(1){
    
          servo_ptr=&servos[0];
