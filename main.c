@@ -5,21 +5,29 @@
 #include<stm32f4xx_it.h>
 #include<math.h>
 #include"SysTick.h"
-#include"car.h"
+#define PI 3.141592653
 #define dataNum 8
+#define l1 100 //大臂长度mm
+#define l2 95 //小臂长度mm
 char USART1_RECV_BUF[100];
 int ready=0;
 int length=0;
 int *GetIntData();
 
 extern void Delay_ms(__IO uint32_t nTime);//延时us函数
-
+struct Spherical_coor change_coordinate(int x,int y,int z);
+void setTheta(int x,int y,int z);
 struct servo{
   int lastPos;
   int label;
 }servos[6]={
   {0,1},{0,2},{0,3},{60,4},{0,5},{0,6}
 };
+struct Spherical_coor{
+  float r;
+  int phi;
+  int theta;
+}S_Coordinate={195,180,0};
 /************************************************************/
 //函数名:runServoToByStep
 //输入：舵机结构体指针，目标角度，步长角度，每步时间间隔（ms）
@@ -186,7 +194,7 @@ void runServoTo(struct servo* s_ptr,int target)
            pwm=target*(-19)+3010;
           TIM_SetCompare4 (TIM3,pwm);//爪子
            break;   
-  case 5:
+  case 5:target+=20;//调整偏移量
            pwm=target*(-19)+3010;
           TIM_SetCompare1 (TIM2,pwm);//位置舵机1
            break;  
@@ -215,6 +223,8 @@ void armInit(){
 
 
 }
+int theta1=0,theta2=0;
+double theta3=0,theta4=0;
 int main(void)
 {
        NVIC_Config();
@@ -223,33 +233,42 @@ int main(void)
        TIM2_PWM_Init();
        TIM1_GPIO_Config();
        Tim1_Config();
-       directionInit();//小车初始化
-       advance();
+
        //初始化串口1，中断方式接收
        SysTick_Init();//初始化时钟
        SysTick->CTRL |=  SysTick_CTRL_ENABLE_Msk;//使能时钟
 
-       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0;
+       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0,theta1=0,theta2=0;
 
        armInit();//初始化机械臂
 
-        uint32_t lastTime=0;
+       uint32_t lastTime=0;
        TIM_SetCompare1(TIM1,1000);
        TIM_SetCompare2(TIM1,1000);
+       
 
         while(1){
-   
+
+
          servo_ptr=&servos[0];
          int *data;
          if(ready==1){
          USART_ITConfig(USART1,USART_IT_RXNE,DISABLE);//暂时关闭接收中断
          data=GetIntData();
+         x=*data;
+         y=*(data+1);
+         z=*(data+2);
+
          pitch=*(data+3);
          roll=*(data+4);
          yaw=*(data+5);
          pinch=*(data+6);
          circleGesture=*(data+7);
+         S_Coordinate=change_coordinate(x,y,z);
+         setTheta(x,y,z);
          
+
+
          if( circleGesture>=2)
          {
               
@@ -266,16 +285,26 @@ int main(void)
            runServoToByStep(servo_ptr+5,0,1,10);      
                   
          }//手势命令
-
+         
          runServoTo(servo_ptr,roll);
          runServoTo(servo_ptr+1,pitch);
-         runServoTo(servo_ptr+2,yaw);
+         //runServoTo(servo_ptr+2,yaw);
+         
+         runServoTo(servo_ptr+2, -S_Coordinate.phi);//底座舵机
+         if(theta2>90) theta2=90;
+         else if(theta2<-90) theta2=-90;
+         if(theta1>180) theta1=180;
+         else if(theta1<0) theta1=0;
+         runServoTo(servo_ptr+4,-45);//大臂舵机
+        
+         //runServoTo(servo_ptr+4,theta1-90);//大臂舵机
+         runServoTo(servo_ptr+5,theta2);//小臂舵机
          uint32_t RunTime=getTime();
          if(RunTime-lastTime>200)//防止错误控制信息使爪子错误张合
          {
            if(pinch<40)
            {
-            runServoTo(servo_ptr+3,0);//合爪子
+            runServoTo(servo_ptr+3,-10);//合爪子
            }
            else runServoTo(servo_ptr+3,60);//张爪子
            lastTime=RunTime;
@@ -337,3 +366,24 @@ int *GetIntData()
 }
 
 
+struct Spherical_coor change_coordinate(int x,int y,int z){
+  struct Spherical_coor temp;
+  temp.r=sqrt(x*x+y*y+z*z);
+  
+  double phi_temp,theta_temp;
+  phi_temp=atan((double)x/(double)z)*180/PI;
+  theta_temp=acos(y/temp.r)*180/PI;
+  temp.phi=(int) phi_temp;
+  temp.theta=(int) theta_temp;
+  temp.theta=-temp.theta;
+  if(temp.r>190) temp.r=190;//限制长度
+  return temp;
+}
+void setTheta(int x,int y,int z){
+ double r=S_Coordinate.r;
+ 
+ theta3=acos((r*r+975)/(200*r))*180/PI;
+ theta4=acos((19025-r*r)/19000)*180/PI;
+ theta1=(int) theta3+S_Coordinate.theta+90;
+ theta2=180-(int) theta4;
+}
