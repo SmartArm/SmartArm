@@ -194,7 +194,7 @@ void runServoTo(struct servo* s_ptr,int target)
            pwm=target*(-19)+3010;
           TIM_SetCompare4 (TIM3,pwm);//爪子
            break;   
-  case 5:target+=20;//调整偏移量
+  case 5://target+=20;//调整偏移量
            pwm=target*(-19)+3010;
           TIM_SetCompare1 (TIM2,pwm);//位置舵机1
            break;  
@@ -223,7 +223,7 @@ void armInit(){
 
 
 }
-int theta1=0,theta2=0;
+int theta1=0,theta2=0;//theta1是大臂舵机角度,theta2是小臂舵机角度
 double theta3=0,theta4=0;
 int main(void)
 {
@@ -238,7 +238,7 @@ int main(void)
        SysTick_Init();//初始化时钟
        SysTick->CTRL |=  SysTick_CTRL_ENABLE_Msk;//使能时钟
 
-       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0,theta1=0,theta2=0;
+       int x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0;
 
        armInit();//初始化机械臂
 
@@ -258,8 +258,10 @@ int main(void)
          x=*data;
          y=*(data+1);
          z=*(data+2);
-
+         y=y-20;//将坐标系沿Y轴平移，方便控制
+         z=z-60;//将坐标系沿Z轴平移，方便控制
          pitch=*(data+3);
+
          roll=*(data+4);
          yaw=*(data+5);
          pinch=*(data+6);
@@ -287,7 +289,12 @@ int main(void)
          }//手势命令
          
          runServoTo(servo_ptr,roll);
+         
+         pitch=pitch+theta2-45;//结合小臂舵机的角度调整俯仰角，使得尽量平行水平面
+         if(pitch>90) pitch=90;
          runServoTo(servo_ptr+1,pitch);
+         
+         
          //runServoTo(servo_ptr+2,yaw);
          
          runServoTo(servo_ptr+2, -S_Coordinate.phi);//底座舵机
@@ -295,9 +302,9 @@ int main(void)
          else if(theta2<-90) theta2=-90;
          if(theta1>180) theta1=180;
          else if(theta1<0) theta1=0;
-         runServoTo(servo_ptr+4,-45);//大臂舵机
+   
         
-         //runServoTo(servo_ptr+4,theta1-90);//大臂舵机
+         runServoTo(servo_ptr+4,theta1-90);//大臂舵机
          runServoTo(servo_ptr+5,theta2);//小臂舵机
          uint32_t RunTime=getTime();
          if(RunTime-lastTime>200)//防止错误控制信息使爪子错误张合
