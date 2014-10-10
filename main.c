@@ -5,6 +5,7 @@
 #include<stm32f4xx_it.h>
 #include<math.h>
 #include"SysTick.h"
+#include"spi.h"
 #define PI 3.141592653
 #define dataNum 8
 #define l1 100 //大臂长度mm
@@ -231,8 +232,10 @@ int main(void)
        USART1_Config();
        TIM3_PWM_Init();
        TIM2_PWM_Init();
-       TIM1_GPIO_Config();
-       Tim1_Config();
+       SPI_GPIOConfig();
+       SPI_Config();
+       //TIM1_GPIO_Config();
+       //Tim1_Config();
 
        //初始化串口1，中断方式接收
        SysTick_Init();//初始化时钟
@@ -243,8 +246,8 @@ int main(void)
        armInit();//初始化机械臂
 
        uint32_t lastTime=0;
-       TIM_SetCompare1(TIM1,1000);
-       TIM_SetCompare2(TIM1,1000);
+      // TIM_SetCompare1(TIM1,1000);
+       //TIM_SetCompare2(TIM1,1000);
        
 
         while(1){
