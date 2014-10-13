@@ -38,21 +38,22 @@ int main(void)
     GPIO_Config();
     NVIC_Config();
     EXTI_Config();
-    TIM2_PWM_Init();//用作时钟信号
+   // TIM2_PWM_Init();//用作时钟信号
+    XCLK_Config();//时钟
     SysTick_Init();
     USART1_NVIC_Config();//配置串口中断优先级
     USART_Config();//配置串口1
     
 	
     SCCB_GPIO_Configuration();
-      //  XCLK_Config();
+       
     
    while(OV7670_Init() != SUCCESS);
     //VSYNC_Init();    						
    
     //OV7670_VSYNC = 0;
-    
-   /* while(1){
+    /*
+    while(1){
        USART_SendData(USART1, 'a');
        while( USART_GetFlagStatus(USART1,USART_FLAG_TC)!= SET);	
     }
@@ -67,7 +68,10 @@ int main(void)
       EXTI->PR |=(1<<4);  //清除悬挂标记位；
       EXTI->PR |=(1<<0);  //清除悬挂标记位；
       EXTI->PR |=(1<<1);  //清除悬挂标记位；
-*/
+*/     USART_SendData(USART1, 0xFF);
+       while( USART_GetFlagStatus(USART1,USART_FLAG_TC)!= SET);
+
+
         for(int x=0;x<120;x++)
         {
           for(int y=0;y<160;y++)
@@ -81,6 +85,7 @@ int main(void)
             ch=(u8) temp;
             USART_SendData(USART1, ch);
 	    while( USART_GetFlagStatus(USART1,USART_FLAG_TC)!= SET);	//发送低8位
+
           }
         }
         EXTI->IMR |=(1<<4);  //开场中断
@@ -93,6 +98,7 @@ int main(void)
 //行中断，像素中断，场中断，摄像头数据引脚的GPIO配置
 void GPIO_Config(){
       GPIO_InitTypeDef GPIO_InitStructure;
+      RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
@@ -121,7 +127,7 @@ void GPIO_Config(){
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
     //GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3| GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 }
