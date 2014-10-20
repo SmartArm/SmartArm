@@ -171,13 +171,14 @@ void SysTick_Handler(void)
 /**
   * @}
   */ 
-extern char USART1_RECV_BUF[100];
+extern char USART1_RECV_BUF[150];
 extern int ready;//判断一组数据传输是否完成
 extern int length;
+
 void USART1_IRQHandler(void)
 {
 
-  char temp;
+  char temp;  
   if(USART_GetFlagStatus(USART1, USART_FLAG_RXNE)==SET)
   {
 
