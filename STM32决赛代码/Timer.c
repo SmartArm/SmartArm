@@ -12,7 +12,7 @@ void TIM4_Config(void)
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
   TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
   /* Time base configuration */    
-  TIM_TimeBaseStructure.TIM_Period = 1000;       //为一个定时周期0.1s
+  TIM_TimeBaseStructure.TIM_Period = 200;       //为一个定时周期0.02s
   TIM_TimeBaseStructure.TIM_Prescaler = 16799;     //设置预分频,10KHZ 
   TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1 ;  //设置时钟分频系数：不分频
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;  //向上计数模式

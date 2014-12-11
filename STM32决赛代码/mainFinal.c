@@ -11,7 +11,7 @@
 #define dataNum 12
 #define l1 100 //大臂长度mm
 #define l2 95 //小臂长度mm
-char USART1_RECV_BUF[150];
+char USART1_RECV_BUF[300];
 int ready=0;
 int length=0;
 int *GetIntData();
@@ -44,13 +44,14 @@ void armInit(void);
 #define radius 50;//用于画圆函数的半径
 void DrawCircle(int cx,int cy,int cz);//机械臂在当前水平面上画圆  
 void up_and_down(void);//机械臂点头
-int Mode=1,valid=0,x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0,tapGesture=0,speed=0;//Mode代表进入什么控制模式，1代表手动控制，2代表自动追踪
+int Mode=1,normalPause=0,x=0,y=0,z=0,pitch=90,roll=90,yaw=0,pinch=100, circleGesture=0,tapGesture=0,speed=0;//Mode代表进入什么控制模式，1代表手动控制，2代表自动追踪
+ int Pause,CamX,CamY;//追踪是否暂停，被追踪物体中心在屏幕的位置
 //valid代表当前用户的手是否在识别区里
 //uint32_t Time1=0,Time2=0,t=0;
 void angleCalc(int _x,int _y,int _z,int _pitch);//计算舵机的角度
 void controlServo(int t1,int t2,int t3,int t4,int t5,int t6);//执行控制命令
 /*********************************以下是自动追踪PID算法的函数************************************************/
-#define CENTERX 320
+#define CENTERX 240
 #define CENTERY 240
 int First=1;
 typedef struct PID
@@ -67,7 +68,7 @@ u8 PIDTime=0;//当该变量为1时，说明计数时间到，需要进行PID计算
 static struct PID xPID={0,0,0,0,0,0,0},yPID={0,0,0,0,0,0,0};//初始化两个PID结构体
 static struct PID *Xptr = &xPID;
 static struct PID *Yptr = &yPID;
-int outputX=0,outputY=200,outputZ=100;//初始化机械臂到合理的姿态
+
 //增量式PID控制设计
 int IncPIDCalc(int NextPoint,struct PID * ptr)
 {
@@ -100,7 +101,12 @@ void SetTarget(struct PID * ptr,double target)
   ptr->SetPoint=target;
 }
 /*********************************PID算法的函数代码段结束************************************************/
-int main(void)
+int direction=0;//用以测试的底座角度
+int LeapX,LeapY;
+int LeapAdjX,LeapAdjY;
+int outputX=0,outputY=10;//初始化机械臂到合理的姿态
+int theta1ForPID=70,theta2ForPID=70;
+ int main(void)
 {
        NVIC_Config();
        USART1_Config();
@@ -109,39 +115,37 @@ int main(void)
        TIM1_GPIO_Config();
        Tim1_Config();
        TIM4_Config();//PID定时
-       //TIM_SetCompare1 (TIM1,10000);
+
        //初始化串口1，中断方式接收
        SysTick_Init();//初始化时钟
        SysTick->CTRL |=  SysTick_CTRL_ENABLE_Msk;//使能时钟
-
+      
        armInit();//初始化机械臂
-      // runServoTo(servo_ptr+4,120);//大臂舵机,当输入40度时，刚好垂直，需要校正这个偏移量
-      //  runServoTo(servo_ptr+4,-60);//大臂舵机,当输入40度时，刚好垂直，需要校正这个偏移量
-       //runServoTo(servo_ptr+3,60);//大臂舵机
-      // runServoTo(servo_ptr+3,-10);//大臂舵机
-       
-       //runServoTo(servo_ptr+3,-90);//大臂舵机
+
        SetTarget(Xptr,CENTERX);
        SetTarget(Yptr,CENTERY);//将追踪的PID算法的目标设置为中心点
-
-
-
+       SetProportion(Xptr,0.05);
+       SetProportion(Yptr,0.05);//设定比例参数
+       SetDerivative(Xptr,0.015);
+       SetDerivative(Yptr,0.015);//设定微分参数     
 
         while(1){
          //Time1=getTime();
          servo_ptr=&servos[0];
          int *data;
          if(ready==1){//数据准备好
-        
+         
          USART_ITConfig(USART1,USART_IT_RXNE,DISABLE);//暂时关闭接收中断
          
          data=GetIntData();
 
          Mode=*(data);//先读取模式
-         if(Mode=1)//如果进入手动控制模式
+         if(Mode==1)//如果进入手动控制模式
          {
            int First=1;//将PID算法中的首次标志置为1
-           valid=*(data+1);
+          
+           
+           normalPause=*(data+1);
            x=*(data+2);
            y=*(data+3);
            z=*(data+4);
@@ -149,6 +153,7 @@ int main(void)
              
            y=y-50;//将坐标系沿Y轴平移，方便控制
            z=z-200;//将坐标系沿Z轴平移，方便控制
+
            if(z>0) z=0;//限制边界
            pitch=*(data+5);
            roll=*(data+6);
@@ -158,9 +163,8 @@ int main(void)
            circleGesture=*(data+9);
            tapGesture=*(data+10);
            speed=*(data+11);//用户手的移动速度
-            
-  
-           if(valid==0)
+           
+           if(normalPause==1)
            {
              ready=0;
              length=0;
@@ -187,16 +191,28 @@ int main(void)
          
               angleCalc(x,y,z,pitch);//计算角度
               int clawAngle;
-              if(pinch<60)
+              if(pinch<80)
               {
                   clawAngle=-10;
                  //合爪子
                 }
               else  clawAngle=60;
-     
-     
-              controlServo(roll,pitch,yaw,clawAngle,theta1,theta2);//执行控制命令 //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
                
+              if(sqrt(x*x+z*z)>100)//底面半径小于100，使用yaw来控制
+              {
+                controlServo(roll,pitch,yaw,clawAngle,theta1,theta2);//执行控制命令 //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+                outputX=yaw;//记录PID初始姿态
+
+              }
+              else
+              {
+                controlServo(roll,pitch,-S_Coordinate.phi,clawAngle,theta1,theta2);//执行控制命令 //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+                outputX=-S_Coordinate.phi;//记录PID初始姿态
+              }
+              outputY=pitch;//记录PID初始姿态
+              theta1ForPID=theta1;//记录PID姿态
+              theta2ForPID=theta2;//记录PID姿态
+  
              /* if( circleGesture>=2)
               {
                  DrawCircle(x,y,z);  
@@ -227,25 +243,88 @@ int main(void)
            if(First==1)
            {
             //第一次进入,将舵机调整到合理的位置
-            angleCalc(outputX,outputY,outputZ,pitch);//计算角度
-            controlServo(0,pitch,-S_Coordinate.phi,60,theta1,theta2);//执行控制命令 //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+            //angleCalc(outputX,outputY,outputZ,0);//计算角度
+            //controlServo(0,pitch,-S_Coordinate.phi,60,theta1,theta2);//执行控制命令 //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+           // controlServo(0,27,0,60,0,27);//test //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+            // controlServo(0,0,0,60,0,27);//test //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+            //outputX=0;
+           // outputY=10;//复位
+           
+            if(outputX>90) outputX=90;
+             else if(outputX<-90) outputX=-90;
+            if(outputY>90) outputY=90;
+             else if(outputY<-60) outputY=-60;//限度
+            
+            controlServo(12,outputY,outputX,60,theta1ForPID,theta2ForPID);
+            /*runServoTo(servo_ptr,12);
+            runServoTo(servo_ptr+1,outputY);
+            runServoTo(servo_ptr+2,outputX);//底座舵机         
+            runServoTo(servo_ptr+3,60);//合爪子
+            runServoTo(servo_ptr+4,70);//大臂舵机
+            runServoTo(servo_ptr+5,70);//小臂舵机   
+            */
             Delay_ms(500);
+          
             First=0;
            }
-           //进入自动追踪模式,每0.1S执行一次PID计算
+           //进入自动追踪模式,每0.01S执行一次PID计算
            if(PIDTime==1)
            {
-             int Pause,CamX,CamY;//追踪是否暂停，被追踪物体中心在屏幕的位置
+             
              Pause=*(data+1);
              CamX=*(data+2);
              CamY=*(data+3);//获取数据
-
-             outputX+=IncPIDCalc(CamX,Xptr);
-             outputY+=IncPIDCalc(CamY,Yptr);
              
+             if(Pause==1)
+             {
+                ready=0;
+                length=0;
+                free(data);//释放内存
+                USART_ITConfig(USART1,USART_IT_RXNE,ENABLE);//打开接收中断  
+                continue;
+             }
+
+             
+             int screenAdjustX,screenAdjustY;
+             screenAdjustX=IncPIDCalc(CamX,Xptr);
+             screenAdjustY=IncPIDCalc(CamY,Yptr);//计算屏幕上的调整量
+             //int LeapAdjX,LeapAdjY;
+             LeapAdjX=(int) -screenAdjustX/2.7;
+             LeapAdjY=(int) screenAdjustY/2.7;//转化为Leap的调整量,调整的是手腕俯仰舵机和底座角度舵机
+             outputX+=LeapAdjX;
+             outputY+=LeapAdjY;//调整位置坐标
+
+             if(outputX>90) outputX=90;
+             else if(outputX<-90) outputX=-90;
+              if(outputY>90) outputY=90;
+             else if(outputY<-60) outputY=-60;//限度
+            controlServo(12,outputY,outputX,60,theta1ForPID,theta2ForPID);
+           /* runServoTo(servo_ptr,12);
+            runServoTo(servo_ptr+1,outputY);
+            runServoTo(servo_ptr+2,outputX);//底座舵机         
+            runServoTo(servo_ptr+3,60);//合爪子
+            runServoTo(servo_ptr+4,70);//大臂舵机
+            runServoTo(servo_ptr+5,70);//小臂舵机    
+            */
+             //PID代码
+            
+            /* if((CamX-240)<-10)
+             {
+               direction-=1;
+             }
+             else if((CamX-240)>10)
+             {
+               direction+=1;
+             }
+             controlServo(12,27,direction,60,0,27);//test //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
+             */
              PIDTime=0;
-             TIM_ITConfig(TIM4,TIM_IT_Update,DISABLE); //打开TIM4 中断 
+             TIM_ITConfig(TIM4,TIM_IT_Update,ENABLE); //打开TIM4 中断 
            }
+           ready=0;
+           length=0;
+           free(data);//释放内存
+           USART_ITConfig(USART1,USART_IT_RXNE,ENABLE);//打开接收中断  
          }
         }
         
@@ -347,9 +426,12 @@ void angleCalc(int _x,int _y,int _z,int _pitch)
 //t1~t6分别对应手腕ROLL,手腕PITCH，底座角度，爪子，大臂，小臂
 void controlServo(int t1,int t2,int t3,int t4,int t5,int t6)
 {
+   servo_ptr=&servos[0];
    t5=t5+40;//修正大臂舵机的偏移量
    if(t2>90) t2=90;
    else if(t2<-90) t2=-90;
+   if(t3>90) t3=90;
+   else if(t3<-90) t3=-90;
    if(t5>120) t5=120;
    else if(t5<-60) t5=-60;
    if(t6>90) t6=90;
@@ -357,14 +439,14 @@ void controlServo(int t1,int t2,int t3,int t4,int t5,int t6)
 
    runServoTo(servo_ptr,t1);
    runServoTo(servo_ptr+1,t2);
-   if(S_Coordinate.r>100)
-    {
-           runServoTo(servo_ptr+2, -S_Coordinate.phi);//底座舵机         
-    }
+  // if(S_Coordinate.r>100)
+   // {
+           runServoTo(servo_ptr+2,t3);//底座舵机         
+   /* }
     else
     {
            runServoTo(servo_ptr+2,yaw);//底座舵机      
-    }
+    }*/
    runServoTo(servo_ptr+2,t3);//底座舵机    
    runServoTo(servo_ptr+3,t4);//合爪子
    runServoTo(servo_ptr+4,t5);//大臂舵机
@@ -535,7 +617,8 @@ void runServoTo(struct servo* s_ptr,int target)
            break;  //底座旋转舵机
   case 4:
            pwm=target*(-19)+3010;
-           TIM_SetCompare4(TIM3,pwm);//爪子
+           pwm=40000-pwm;
+           TIM_SetCompare2(TIM1,pwm);//爪子
            break;   
   case 5://target+=20;//调整偏移量
            pwm=target*(-19)+3010;
